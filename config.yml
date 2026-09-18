@@ -31,7 +31,7 @@ agentic:
   workflow_repository: callmegreg-demo-org/agentic-alert-triage
 
   # Copilot model used by the agentic workflow.
-  model: auto
+  model: gpt-5-mini
 
   # One enterprise team, assumed to hold the enterprise Security Manager role.
   # Use the full enterprise team slug, including GitHub's ent: prefix.
