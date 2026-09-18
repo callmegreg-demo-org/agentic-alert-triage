@@ -2,6 +2,7 @@
 name: Agentic Alert Dismissal Review
 description: Investigate one signed webhook snapshot and route it through a bounded SafeOutput.
 on:
+  bots: ["${{ vars.ALERT_DISMISSAL_APP_BOT }}"]
   repository_dispatch:
     types: [alert-dismissal-requested]
 

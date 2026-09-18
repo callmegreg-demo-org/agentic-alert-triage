@@ -200,6 +200,12 @@ Set these Actions secrets in the control repository:
 | `ALERT_DISMISSAL_APP_CLIENT_ID` | Client ID for the same GitHub App |
 | `ALERT_DISMISSAL_APP_PRIVATE_KEY` | Full private key PEM for that App |
 
+Set this Actions variable in the control repository:
+
+| Variable | Description |
+|---|---|
+| `ALERT_DISMISSAL_APP_BOT` | Exact bot login for the same App, such as `agentic-alert-triage[bot]`; gh-aw uses it as the only bot allowed to activate the dispatch workflow |
+
 Workflow jobs authenticate as the App before selecting the target organization.
 The model never receives App credentials or installation tokens. Copilot
 inference uses `copilot-requests: write` on the workflow's built-in Actions
