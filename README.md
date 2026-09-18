@@ -48,6 +48,10 @@ or redacted, and ambiguous requests are denied rather than guessed.
 
 ## Setup
 
+> [!TIP]
+> Try opening this repository in the [GitHub Copilot App](https://github.com/github/app) and prompting Copilot in `Interactive` mode like this:
+> > "Guide me through step by step setup of this app in my enterprise `YOUR_ENTERPRISE_SLUG` where I'll be installing the app in `YOUR_ORG_SLUGS` orgs.
+
 ### 1. Meet the prerequisites
 
 - Node.js 22 or newer. GitHub Actions may use Node.js 24.
@@ -160,7 +164,7 @@ from the validated webhook snapshot, never the control repository owner or
 | `agentic.model` | `auto` | Copilot model used by the agentic workflow |
 | `agentic.appsec_team_slug` | `ent:appsec-team` | Enterprise team with the Security Manager role; `ent:` is required |
 | `agentic.staged` | `true` | Preview SafeOutput writes |
-| `agentic.help_contact` | `@/ent:appsec-team` | Contact included in agentic denials |
+| `agentic.help_contact` | `Enterprise AppSec team (ent:appsec-team)` | Plain-text contact included in agentic denials |
 | `agentic.denial_message` | built-in | Optional agentic denial template |
 | `denial_message` | built-in | Optional deterministic denial template |
 | `cache.app_identity_ttl_seconds` | `600` | App ownership cache TTL, 1-3600 seconds |
@@ -175,8 +179,9 @@ Agentic denial placeholders are `{requester}`, `{denial_reason}`,
 Deterministic denial placeholders are `{alert_type}`, `{alert_number}`,
 `{required_phrase}`, `{denial_reason}`, `{requester}`, and `{repo_full_name}`.
 
-Use an enterprise team mention such as `@/ent:appsec-team` for shared support.
-Avoid organization-specific names in shared regexes and denial templates. The
+Denial request responses are rendered as plain text by GitHub. Use labels and
+plain URLs instead of Markdown or mentions in denial templates. Avoid
+organization-specific names in shared regexes and denial templates. The
 agentic workflow reads linked evidence only from the target organization.
 
 ### 5. Configure credentials
@@ -210,24 +215,6 @@ Workflow jobs authenticate as the App before selecting the target organization.
 The model never receives App credentials or installation tokens. Copilot
 inference uses `copilot-requests: write` on the workflow's built-in Actions
 token.
-
-### 6. Compile and stage the workflow
-
-The generated
-[`agentic-dismissal-review.lock.yml`](.github/workflows/agentic-dismissal-review.lock.yml)
-comes from
-[`agentic-dismissal-review.md`](.github/workflows/agentic-dismissal-review.md).
-Never edit the lock file directly.
-
-```bash
-npm install
-npm run compile:agentic
-```
-
-Commit both workflow files and deploy them to the control repository's default
-branch. Keep `agentic.staged: true` while reviewing workflow summaries and
-gh-aw audit logs. Set it to `false` only when decisions are ready to write.
-Restart Probot after configuration changes.
 
 ## Deploy
 
@@ -267,6 +254,24 @@ See Probot's
 [deployment](https://probot.github.io/docs/deployment/) guides.
 
 ## Development
+
+### Compile and stage the workflow
+
+The generated
+[`agentic-dismissal-review.lock.yml`](.github/workflows/agentic-dismissal-review.lock.yml)
+comes from
+[`agentic-dismissal-review.md`](.github/workflows/agentic-dismissal-review.md).
+Never edit the lock file directly.
+
+```bash
+npm install
+npm run compile:agentic
+```
+
+Commit both workflow files and deploy them to the control repository's default
+branch. Keep `agentic.staged: true` while reviewing workflow summaries and
+gh-aw audit logs. Set it to `false` only when decisions are ready to write.
+Restart Probot after configuration changes.
 
 For local webhook development:
 

@@ -65,16 +65,17 @@ function validateDismissalComment(comment, rules = {}) {
 }
 
 function getDefaultDenialTemplate() {
-  return `## Alert Dismissal Request Denied
+  return `DISMISSAL REQUEST DENIED
 
-Your request to dismiss this **{alert_type}** alert (#{alert_number}) has been automatically denied because the dismissal comment does not meet the required criteria.
+Review: Automated criteria
+Alert: {alert_type} #{alert_number}
+Requester: {requester}
+Status: The dismissal comment did not meet the required criteria
+Reason: {denial_reason}
 
-**Reason:** {denial_reason}
+Next step: Submit a new dismissal request with an updated comment that satisfies the requirements.
 
-Please submit a new dismissal request with an updated comment that satisfies the requirements.
-
----
-*This action was performed automatically by the [Alert Dismissal Automation](https://github.com/{repo_full_name}).*`;
+Source: Alert Dismissal Automation for {repo_full_name}`;
 }
 
 function formatDenialMessage(

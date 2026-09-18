@@ -148,7 +148,8 @@ function getAgenticSettings(config) {
     workflowRepository,
     model,
     staged: agentic.staged !== false,
-    helpContact: agentic.help_contact || `@/${teamSlug}`,
+    helpContact:
+      agentic.help_contact || `Enterprise AppSec team (${teamSlug})`,
     denialMessage: agentic.denial_message || null,
   };
 }
@@ -1086,15 +1087,16 @@ function formatAgenticDenialMessage({
     dismissalRequest.requester?.actor_name || 'requester';
   const template =
     target.denialMessage ||
-    `## Dismissal request denied after agentic review
+    `DISMISSAL REQUEST DENIED
 
-@{requester}, this dismissal request is not ready for human review.
+Review: Agentic
+Requester: {requester}
+Status: Not ready for human review
+Reason: {denial_reason}
 
-**Why it was denied:** {denial_reason}
+Next step: Submit a new request with a specific explanation of why the alert can be dismissed, supporting evidence or links, and any relevant mitigating controls or remediation plan.
 
-Please submit a new request with a specific explanation of why the alert can be dismissed, supporting evidence or links, and any relevant mitigating controls or remediation plan.
-
-For help, contact {help_contact}.`;
+Help: {help_contact}`;
 
   return truncate(
     template

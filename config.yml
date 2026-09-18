@@ -41,15 +41,17 @@ agentic:
   # Preview SafeOutput decisions until the workflow has been evaluated.
   staged: false
 
-  # Defaults to "@/<appsec_team_slug>" when omitted.
-  # help_contact: "@/ent:appsec-team"
+  # Defaults to "Enterprise AppSec team (<appsec_team_slug>)" when omitted.
+  # help_contact: "Enterprise security desk"
 
   # Optional denial template. Available placeholders:
   # {requester}, {denial_reason}, {help_contact}, {alert_type},
   # {alert_number}, {repo_full_name}
   # denial_message: |
-  #   Your dismissal request was denied: {denial_reason}
-  #   Contact {help_contact} for help.
+  #   DISMISSAL REQUEST DENIED
+  #   Requester: {requester}
+  #   Reason: {denial_reason}
+  #   Help: {help_contact}
 
 # Short-lived, bounded process-local caches reduce duplicate webhook work and
 # GitHub API calls. They are not a durable queue or cross-replica lock.
@@ -65,7 +67,10 @@ cache:
 # {alert_type}, {alert_number}, {required_phrase}, {denial_reason},
 # {requester}, {repo_full_name}
 denial_message: |
-  Alert Dismissal Request Denied
-  Your request to dismiss this alert has been automatically denied.
+  DISMISSAL REQUEST DENIED
+  Review: Automated criteria
+  Alert: {alert_type} #{alert_number}
+  Requester: {requester}
+  Status: The dismissal comment did not meet the required criteria
   Reason: {denial_reason}
-  Please create a supporting issue and add its link to the dismissal request message: https://github.com/{repo_full_name}/issues/new
+  Next step: Create a supporting issue, then add its URL to a new dismissal request: https://github.com/{repo_full_name}/issues/new

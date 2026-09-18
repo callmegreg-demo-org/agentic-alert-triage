@@ -133,9 +133,20 @@ describe('deterministic dismissal review', () => {
       {}
     );
 
-    assert.match(message, /dependabot/);
-    assert.match(message, /#7/);
-    assert.match(message, /Too short/);
-    assert.match(message, /org\/repo/);
+    assert.equal(
+      message,
+      `DISMISSAL REQUEST DENIED
+
+Review: Automated criteria
+Alert: dependabot #7
+Requester: unknown
+Status: The dismissal comment did not meet the required criteria
+Reason: Too short.
+
+Next step: Submit a new dismissal request with an updated comment that satisfies the requirements.
+
+Source: Alert Dismissal Automation for org/repo`
+    );
+    assert.doesNotMatch(message, /[*@]/);
   });
 });

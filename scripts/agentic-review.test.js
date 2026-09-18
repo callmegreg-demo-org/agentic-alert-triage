@@ -117,7 +117,10 @@ describe('agentic configuration', () => {
     assert.equal(settings.workflowRepository, WORKFLOW_REPOSITORY);
     assert.equal(settings.model, DEFAULT_MODEL);
     assert.equal(settings.staged, true);
-    assert.equal(settings.helpContact, '@/ent:appsec-team');
+    assert.equal(
+      settings.helpContact,
+      'Enterprise AppSec team (ent:appsec-team)'
+    );
   });
 
   it('requires the central workflow repository', () => {
@@ -274,14 +277,30 @@ describe('dispatch payloads', () => {
       );
       assert.equal(target.organization, organization);
       assert.equal(target.owner, organization);
-      assert.equal(target.helpContact, '@/ent:appsec-team');
+      assert.equal(
+        target.helpContact,
+        'Enterprise AppSec team (ent:appsec-team)'
+      );
       const message = formatAgenticDenialMessage({
         config: enterpriseConfig(),
         target,
         dismissalRequest: target.dismissalRequest,
         reason: 'Provide supporting evidence.',
       });
-      assert.match(message, /@\/ent:appsec-team/);
+      assert.equal(
+        message,
+        `DISMISSAL REQUEST DENIED
+
+Review: Agentic
+Requester: octocat
+Status: Not ready for human review
+Reason: Provide supporting evidence.
+
+Next step: Submit a new request with a specific explanation of why the alert can be dismissed, supporting evidence or links, and any relevant mitigating controls or remediation plan.
+
+Help: Enterprise AppSec team (ent:appsec-team)`
+      );
+      assert.doesNotMatch(message, /[#*@]/);
     }
   });
 
