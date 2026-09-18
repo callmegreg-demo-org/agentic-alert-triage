@@ -39,7 +39,7 @@ agentic:
   appsec_team_slug: ent:appsec-team
 
   # Preview SafeOutput decisions until the workflow has been evaluated.
-  staged: true
+  staged: false
 
   # Defaults to "@/<appsec_team_slug>" when omitted.
   # help_contact: "@/ent:appsec-team"
