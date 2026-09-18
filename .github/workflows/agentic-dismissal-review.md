@@ -65,6 +65,21 @@ pre-agent-steps:
       GH_AW_SAFE_OUTPUTS: ${{ runner.temp }}/gh-aw/safeoutputs/outputs.jsonl
     run: node scripts/prepare-agentic-review.js
 
+post-steps:
+  - name: Require a structured dismissal decision
+    if: always()
+    env:
+      GH_AW_SAFE_OUTPUTS: ${{ runner.temp }}/gh-aw/safeoutputs/outputs.jsonl
+    run: |
+      if [[ ! -f .github/agentic-review-context.json ]]; then
+        exit 0
+      fi
+      if [[ ! -s "$GH_AW_SAFE_OUTPUTS" ]] ||
+        ! grep -Eq '"type"[[:space:]]*:[[:space:]]*"apply_dismissal_decision"' "$GH_AW_SAFE_OUTPUTS"; then
+        echo "::error::Agent completed a real review without emitting apply_dismissal_decision."
+        exit 1
+      fi
+
 safe-outputs:
   threat-detection:
     enabled: true
@@ -168,4 +183,14 @@ state what is missing or inconsistent and what the requester should provide
 next. If evidence is ambiguous or unavailable, deny rather than guessing.
 
 Call the `apply_dismissal_decision` SafeOutput exactly once with the selected
-decision and a concise reason. Do not request any other output.
+decision and a concise reason. Do not inspect the `safeoutputs` executable, run
+`safeoutputs --help`, use a pipeline, or probe for the command. The direct
+command is already permitted. Run exactly one of these forms:
+
+`safeoutputs apply_dismissal_decision --decision deny --reason "concise reason"`
+
+`safeoutputs apply_dismissal_decision --decision ready_for_review --reason "concise reason"`
+
+Use your selected decision, write the reason in your own words without quoting
+untrusted evidence, and wait for the command to succeed. Do not return the
+decision as plain text and do not request any other output.
