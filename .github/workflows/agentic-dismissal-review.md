@@ -76,6 +76,12 @@ post-steps:
       fi
       if [[ ! -s "$GH_AW_SAFE_OUTPUTS" ]] ||
         ! grep -Eq '"type"[[:space:]]*:[[:space:]]*"apply_dismissal_decision"' "$GH_AW_SAFE_OUTPUTS"; then
+        if grep -Eq '"staged"[[:space:]]*:[[:space:]]*true' .github/agentic-review-context.json; then
+          warning="Agent completed a staged review without emitting apply_dismissal_decision. No preview decision is available and no GitHub-side action was attempted."
+          echo "::warning::$warning"
+          printf '## Agentic dismissal review\n\n**Warning:** %s\n' "$warning" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
         echo "::error::Agent completed a real review without emitting apply_dismissal_decision."
         exit 1
       fi
