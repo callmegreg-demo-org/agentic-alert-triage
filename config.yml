@@ -2,7 +2,7 @@
 
 # Required enterprise URL slug. The App must be owned by this enterprise.
 # organization is not supported. No organization allowlist is needed.
-enterprise: your-enterprise
+enterprise: avocado-corp
 
 # deterministic: deny comments that fail the configured criteria.
 # agentic: dispatch every created request to the gh-aw workflow.
@@ -28,7 +28,7 @@ agentic:
   # also be installed on this repository (or its owner) with Contents: write
   # so it can create repository_dispatch events.
   # Replace this example with a repository in your enterprise.
-  workflow_repository: your-security-org/alert-triage
+  workflow_repository: callmegreg-demo-org/agentic-alert-triage
 
   # Copilot model used by the agentic workflow.
   model: auto
