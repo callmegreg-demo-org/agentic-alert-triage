@@ -167,11 +167,26 @@ describe('agentic configuration', () => {
 
   it('requires the App to be owned by the configured enterprise, not a same-named org', () => {
     validateEnterpriseApp({ owner: { slug: 'OCTO-ENTERPRISE' } }, 'octo-enterprise');
+    validateEnterpriseApp(
+      { owner: { login: 'OCTO-ENTERPRISE', type: 'enterprise' } },
+      'octo-enterprise'
+    );
+    validateEnterpriseApp(
+      { owner: { login: 'octo-enterprise', type: 'Enterprise' } },
+      'octo-enterprise'
+    );
     for (const owner of [
       null,
       { slug: 'other-enterprise' },
       { login: 'octo-enterprise', type: 'Organization' },
+      { login: 'octo-enterprise' },
+      { login: 'other-enterprise', type: 'enterprise' },
       { login: 'octo-enterprise', slug: 'octo-enterprise' },
+      {
+        login: 'octo-enterprise',
+        slug: 'other-enterprise',
+        type: 'enterprise',
+      },
     ]) {
       assert.throws(
         () => validateEnterpriseApp({ owner }, 'octo-enterprise'),
