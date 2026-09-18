@@ -897,13 +897,13 @@ describe('alert handling', () => {
     }), /enterprise team membership snapshot is required/);
   });
 
-  it('paginates the enterprise team memberships endpoint without organization parameters', async () => {
+  it('paginates the enterprise team memberships endpoint using the bare API slug', async () => {
     const members = [{ login: 'security-one' }, { login: 'security-two' }];
     const octokit = {
       paginate: async (endpoint, parameters) => {
         assert.equal(endpoint, 'GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships');
         assert.equal(parameters.enterprise, 'octo-enterprise');
-        assert.equal(parameters['enterprise-team'], 'ent:appsec-team');
+        assert.equal(parameters['enterprise-team'], 'appsec-team');
         assert.equal(parameters.per_page, 100);
         assert.equal(Object.hasOwn(parameters, 'org'), false);
         assert.equal(Object.hasOwn(parameters, 'role'), false);

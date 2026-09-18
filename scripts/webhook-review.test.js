@@ -691,7 +691,7 @@ describe('agentic webhook dispatch', () => {
       'GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships'
     );
     assert.equal(harness.calls.teamLookups[0].parameters.enterprise, 'octo-enterprise');
-    assert.equal(harness.calls.teamLookups[0].parameters['enterprise-team'], 'ent:appsec-team');
+    assert.equal(harness.calls.teamLookups[0].parameters['enterprise-team'], 'appsec-team');
     assert.equal(harness.calls.appAuth.filter((id) => id === 8001).length, 1);
     const payloads = harness.calls.controlRequests.map(
       (call) => call.parameters.client_payload

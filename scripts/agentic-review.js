@@ -366,11 +366,12 @@ async function getAlert(octokit, owner, repo, alertType, alertNumber) {
 }
 
 async function listEnterpriseTeamMembers(octokit, enterprise, teamSlug) {
+  const enterpriseTeam = getEnterpriseTeamSlug(teamSlug).slice('ent:'.length);
   return octokit.paginate(
     'GET /enterprises/{enterprise}/teams/{enterprise-team}/memberships',
     {
       enterprise: getEnterpriseSlug(enterprise),
-      'enterprise-team': getEnterpriseTeamSlug(teamSlug),
+      'enterprise-team': enterpriseTeam,
       per_page: 100,
       headers: { 'X-GitHub-Api-Version': API_VERSION },
     }
