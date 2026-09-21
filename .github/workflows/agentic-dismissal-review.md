@@ -81,6 +81,7 @@ post-steps:
       fi
 
 safe-outputs:
+  noop: false
   threat-detection:
     enabled: true
     max-ai-credits: 500
