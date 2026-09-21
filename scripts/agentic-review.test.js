@@ -118,7 +118,7 @@ describe('agentic configuration', () => {
     assert.equal(settings.staged, true);
     assert.equal(
       settings.helpContact,
-      'Enterprise AppSec team (ent:appsec-team)'
+      'Enterprise AppSec team in your alert (@/ent:appsec-team)'
     );
   });
 
@@ -278,28 +278,27 @@ describe('dispatch payloads', () => {
       assert.equal(target.owner, organization);
       assert.equal(
         target.helpContact,
-        'Enterprise AppSec team (ent:appsec-team)'
+        'Enterprise AppSec team in your alert (@/ent:appsec-team)'
       );
       const message = formatAgenticDenialMessage({
         config: enterpriseConfig(),
         target,
         dismissalRequest: target.dismissalRequest,
-        reason: 'Provide supporting evidence.',
+        reason:
+          'The request lacks a substantive justification: the linked issue does not explain why dismissal is appropriate, provides no concrete supporting evidence, and the comment does not address the alert beyond stating a preference.',
       });
       assert.equal(
         message,
-        `DISMISSAL REQUEST DENIED
+        `DISMISSAL REQUEST DENIED.
 
-Review: Agentic
-Requester: octocat
-Status: Not ready for human review
-Reason: Provide supporting evidence.
+Reason: The request lacks a substantive justification: the linked issue does not explain why dismissal is appropriate, provides no concrete supporting evidence, and the comment does not address the alert beyond stating a preference.
 
 Next step: Submit a new request with a specific explanation of why the alert can be dismissed, supporting evidence or links, and any relevant mitigating controls or remediation plan.
 
-Help: Enterprise AppSec team (ent:appsec-team)`
+For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-team)`
       );
-      assert.doesNotMatch(message, /[#*@]/);
+      assert.match(message, /@\/ent:appsec-team/);
+      assert.doesNotMatch(message, /@\u200b\/ent:appsec-team/);
     }
   });
 
@@ -308,6 +307,28 @@ Help: Enterprise AppSec team (ent:appsec-team)`
     config.agentic.help_contact = 'Contact the enterprise security desk.';
     const target = validateDispatchEvent(enterpriseDispatchEvent(), config, validationEnv());
     assert.equal(target.helpContact, config.agentic.help_contact);
+  });
+
+  it('preserves a configured agentic denial template', () => {
+    const config = agenticConfig({
+      denial_message:
+        'Custom denial for {requester}: {denial_reason} Help: {help_contact}',
+    });
+    const target = validateDispatchEvent(
+      enterpriseDispatchEvent(),
+      config,
+      validationEnv()
+    );
+
+    assert.equal(
+      formatAgenticDenialMessage({
+        config,
+        target,
+        dismissalRequest: target.dismissalRequest,
+        reason: 'Provide supporting evidence.',
+      }),
+      'Custom denial for octocat: Provide supporting evidence. Help: Enterprise AppSec team in your alert (@/ent:appsec-team)'
+    );
   });
 
   it('rejects missing or mismatched enterprise provenance and cross-org repositories', () => {
