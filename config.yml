@@ -41,17 +41,17 @@ agentic:
   # Preview SafeOutput decisions until the workflow has been evaluated.
   staged: false
 
-  # Defaults to "Enterprise AppSec team (<appsec_team_slug>)" when omitted.
+  # Defaults to "Enterprise AppSec team in your alert (@/<appsec_team_slug>)"
+  # when omitted.
   # help_contact: "Enterprise security desk"
 
   # Optional denial template. Available placeholders:
   # {requester}, {denial_reason}, {help_contact}, {alert_type},
   # {alert_number}, {repo_full_name}
   # denial_message: |
-  #   DISMISSAL REQUEST DENIED
-  #   Requester: {requester}
+  #   DISMISSAL REQUEST DENIED.
   #   Reason: {denial_reason}
-  #   Help: {help_contact}
+  #   For more help, mention the {help_contact}
 
 # Short-lived, bounded process-local caches reduce duplicate webhook work and
 # GitHub API calls. They are not a durable queue or cross-replica lock.

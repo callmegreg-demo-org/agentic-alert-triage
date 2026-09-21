@@ -164,7 +164,7 @@ from the validated webhook snapshot, never the control repository owner or
 | `agentic.model` | `auto` | Copilot model used by the agentic workflow |
 | `agentic.appsec_team_slug` | `ent:appsec-team` | Enterprise team with the Security Manager role; `ent:` is required |
 | `agentic.staged` | `true` | Preview SafeOutput writes |
-| `agentic.help_contact` | `Enterprise AppSec team (ent:appsec-team)` | Plain-text contact included in agentic denials |
+| `agentic.help_contact` | `Enterprise AppSec team in your alert (@/ent:appsec-team)` | Contact text included in agentic denials |
 | `agentic.denial_message` | built-in | Optional agentic denial template |
 | `denial_message` | built-in | Optional deterministic denial template |
 | `cache.app_identity_ttl_seconds` | `600` | App ownership cache TTL, 1-3600 seconds |
@@ -179,8 +179,10 @@ Agentic denial placeholders are `{requester}`, `{denial_reason}`,
 Deterministic denial placeholders are `{alert_type}`, `{alert_number}`,
 `{required_phrase}`, `{denial_reason}`, `{requester}`, and `{repo_full_name}`.
 
-Denial request responses are rendered as plain text by GitHub. Use labels and
-plain URLs instead of Markdown or mentions in denial templates. Avoid
+Denial request responses are rendered as plain text by GitHub. The built-in
+agentic denial uses the validated enterprise-team mention
+`@/ent:appsec-team`; untrusted agent rationale has mentions neutralized. Use
+labels and plain URLs instead of other Markdown in denial templates. Avoid
 organization-specific names in shared regexes and denial templates. The
 agentic workflow reads linked evidence only from the target organization.
 
