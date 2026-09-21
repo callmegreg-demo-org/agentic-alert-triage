@@ -13,6 +13,7 @@ permissions:
 engine:
   id: copilot
   model: ${{ github.event.client_payload.review.model }}
+  bare: true
 strict: true
 network: {}
 timeout-minutes: 10
@@ -82,6 +83,8 @@ post-steps:
 
 safe-outputs:
   noop: false
+  missing-tool: false
+  missing-data: false
   threat-detection:
     enabled: true
     max-ai-credits: 500
@@ -145,6 +148,11 @@ safe-outputs:
 
 # Review the alert dismissal request
 
+This is a decision-only workflow, not a repository coding task. A successful
+run has exactly one completion path: call `apply_dismissal_decision` once.
+Reading and evaluating the supplied context is the work; do not modify files
+and do not substitute a no-op or diagnostic SafeOutput.
+
 Read `.github/agentic-review-context.json`. It contains the validated and
 sanitized dismissal request snapshot supplied from GitHub's signed webhook, a
 current minimized view of the alert, and any same-organization GitHub issues
@@ -162,6 +170,8 @@ to verify roles or look up organization-local teams.
 
 Determine whether the request is ready for a human AppSec reviewer:
 
+- If the snapshotted request is not open or pending, choose `deny`; it cannot
+  be advanced for review.
 - The requested dismissal reason must be clear and relevant to this alert.
 - The comment must explain why dismissal is appropriate, not merely restate the
   desired outcome.
@@ -186,7 +196,9 @@ next. If evidence is ambiguous or unavailable, deny rather than guessing.
 Call the `apply_dismissal_decision` SafeOutput exactly once with the selected
 decision and a concise reason. Do not inspect the `safeoutputs` executable, run
 `safeoutputs --help`, use a pipeline, or probe for the command. The direct
-command is already permitted. Run exactly one of these forms:
+command is already permitted. This decision is required even when the
+downstream handler is operating in staged preview mode or the alert is already
+assigned to an AppSec member. Run exactly one of these forms:
 
 `safeoutputs apply_dismissal_decision --decision deny --reason "concise reason"`
 

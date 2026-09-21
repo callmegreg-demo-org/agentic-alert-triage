@@ -15,7 +15,6 @@ const {
   formatAgenticDenialMessage,
   getAgenticSettings,
   getAlert,
-  isAssignedToTeam,
   isStaleDismissalReviewError,
   listEnterpriseTeamMembers,
   mergeAssignees,
@@ -798,6 +797,7 @@ describe('alert handling', () => {
     const serialized = JSON.stringify(context);
     assert.equal(context.target.enterprise, 'octo-enterprise');
     assert.equal(context.target.appsec_team_slug, 'ent:appsec-team');
+    assert.equal(Object.hasOwn(context.target, 'staged'), false);
 
     assert.doesNotMatch(serialized, /actual-secret/);
     assert.doesNotMatch(serialized, /must-not-pass-through/);
@@ -811,26 +811,10 @@ describe('alert handling', () => {
     });
   });
 
-  it('detects AppSec assignment and preserves existing assignees', () => {
-    assert.equal(
-      isAssignedToTeam(
-        'code_scanning',
-        { assignees: [{ login: 'Security-One' }] },
-        ['security-one']
-      ),
-      true
-    );
-    assert.equal(
-      isAssignedToTeam(
-        'secret_scanning',
-        { assigned_to: { login: 'someone-else' } },
-        ['security-one']
-      ),
-      false
-    );
+  it('preserves existing assignees', () => {
     assert.deepEqual(
-      mergeAssignees(['existing', 'alice'], ['alice', 'bob']),
-      ['alice', 'bob', 'existing']
+      mergeAssignees(['existing', 'Alice'], ['alice', 'bob']),
+      ['Alice', 'bob', 'existing']
     );
   });
 
@@ -877,6 +861,29 @@ describe('alert handling', () => {
       'security-one',
       'security-two',
     ]);
+  });
+
+  it('does not rewrite an alert already assigned to every AppSec member', async () => {
+    const result = await assignAlertToTeam({
+      octokit: {
+        request: async () => assert.fail('No redundant assignment is expected'),
+      },
+      owner: 'octo-org',
+      repo: 'service',
+      enterprise: 'octo-enterprise',
+      teamSlug: 'ent:appsec-team',
+      alertType: 'dependabot',
+      alertNumber: 8,
+      alert: {
+        assignees: [
+          { login: 'security-two' },
+          { login: 'Security-One' },
+        ],
+      },
+      teamMembers: ['security-one', 'security-two'],
+    });
+
+    assert.deepEqual(result.assigned, ['security-one', 'security-two']);
   });
 
   it('surfaces alert assignment endpoint failures', async () => {

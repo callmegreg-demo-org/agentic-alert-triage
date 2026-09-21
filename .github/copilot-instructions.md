@@ -211,8 +211,9 @@ SafeOutput jobs run this step with App credentials scoped to that step.
   ID against the webhook source;
 - fetches only the current alert, never current request state;
 - sets `hide_secret=true` for secret scanning alert reads;
-- skips inference when the snapshotted request was not open/pending or the
-  alert is already assigned to AppSec;
+- always prepares a review context for a valid dispatch, including when the
+  snapshotted request is not open/pending or the alert is already assigned to
+  AppSec, so the workflow still emits one bounded decision;
 - fetches at most five same-organization linked issues and at most 20 comments
   per issue;
 - writes `.github/agentic-review-context.json`.

@@ -6,14 +6,11 @@ const fs = require('fs');
 const path = require('path');
 const { Octokit } = require('@octokit/rest');
 const {
-  appendNoop,
   buildReviewContext,
   extractIssueReferences,
   fetchIssueEvidence,
   getAlert,
   getAssignedLogins,
-  isAssignedToTeam,
-  isOpenDismissalRequest,
   loadConfig,
   readDispatchEvent,
   validateDispatchEvent,
@@ -26,16 +23,6 @@ async function main() {
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
   const dismissalRequest = target.dismissalRequest;
 
-  if (!isOpenDismissalRequest(dismissalRequest)) {
-    appendNoop(
-      `Dismissal request #${target.dismissalRequestNumber} was not open in the dispatched snapshot.`
-    );
-    console.log(
-      'Dismissal request snapshot was not open; skipping agent execution.'
-    );
-    return;
-  }
-
   const alert = await getAlert(
     octokit,
     target.owner,
@@ -43,14 +30,6 @@ async function main() {
     target.alertType,
     target.alertNumber
   );
-
-  if (isAssignedToTeam(target.alertType, alert, target.teamLogins)) {
-    appendNoop(
-      `Alert #${target.alertNumber} is already assigned to enterprise team ${target.teamSlug}.`
-    );
-    console.log('Alert is already assigned to the AppSec team; skipping agent execution.');
-    return;
-  }
 
   const evidenceReferences = extractIssueReferences(
     dismissalRequest.requester_comment,

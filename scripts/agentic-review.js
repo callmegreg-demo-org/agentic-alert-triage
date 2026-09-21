@@ -178,10 +178,6 @@ function splitRepository(repoFullName) {
   return { owner: parts[0], repo: parts[1] };
 }
 
-function isOpenDismissalRequest(request) {
-  return ['open', 'pending'].includes(String(request?.status || '').toLowerCase());
-}
-
 function normalizeTeamLogins(teamLogins) {
   if (!Array.isArray(teamLogins)) {
     throw new Error('AppSec team members must be provided as an array.');
@@ -391,13 +387,6 @@ function getAssignedLogins(alertType, alert) {
     : [];
 }
 
-function isAssignedToTeam(alertType, alert, teamLogins) {
-  const team = new Set(teamLogins.map((login) => login.toLowerCase()));
-  return getAssignedLogins(alertType, alert).some((login) =>
-    team.has(login.toLowerCase())
-  );
-}
-
 async function mapWithConcurrency(items, limit, mapper) {
   const results = new Array(items.length);
   let nextIndex = 0;
@@ -422,9 +411,14 @@ function selectSecretScanningAssignee(logins, alertNumber) {
 }
 
 function mergeAssignees(existingLogins, teamLogins) {
-  return [...new Set([...existingLogins, ...teamLogins])].sort((a, b) =>
-    a.localeCompare(b)
-  );
+  const uniqueLogins = new Map();
+  for (const login of [...existingLogins, ...teamLogins]) {
+    const normalized = login.toLowerCase();
+    if (!uniqueLogins.has(normalized)) {
+      uniqueLogins.set(normalized, login);
+    }
+  }
+  return [...uniqueLogins.values()].sort((a, b) => a.localeCompare(b));
 }
 
 async function assignAlertToTeam({
@@ -480,16 +474,25 @@ async function assignAlertToTeam({
     };
   }
 
-  const assignees = mergeAssignees(
-    getAssignedLogins(alertType, alert),
-    teamLogins
-  );
+  const existingAssignees = getAssignedLogins(alertType, alert);
+  const assignees = mergeAssignees(existingAssignees, teamLogins);
   const endpoint =
     alertType === 'code_scanning'
       ? 'PATCH /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}'
       : 'PATCH /repos/{owner}/{repo}/dependabot/alerts/{alert_number}';
 
-  if (!dryRun) {
+  const normalizedExistingAssignees = mergeAssignees(
+    existingAssignees,
+    []
+  ).map((login) => login.toLowerCase());
+  const normalizedAssignees = assignees.map((login) => login.toLowerCase());
+  const assignmentChanged =
+    normalizedAssignees.length !== normalizedExistingAssignees.length ||
+    normalizedAssignees.some(
+      (assignee, index) => assignee !== normalizedExistingAssignees[index]
+    );
+
+  if (!dryRun && assignmentChanged) {
     await octokit.request(endpoint, {
       owner,
       repo,
@@ -1010,7 +1013,6 @@ function buildReviewContext({
       dismissal_request_id: target.dismissalRequestId,
       dismissal_request_number: target.dismissalRequestNumber,
       appsec_team_slug: target.teamSlug,
-      staged: target.staged || target.dryRun,
     },
     source: {
       webhook_event: target.webhookEvent,
@@ -1024,16 +1026,6 @@ function buildReviewContext({
     alert: sanitizeAlert(target.alertType, alert),
     linked_issue_evidence: sanitizeEvidence(evidence, sensitiveValues),
   };
-}
-
-function appendNoop(message, safeOutputsPath = process.env.GH_AW_SAFE_OUTPUTS) {
-  if (!safeOutputsPath) {
-    throw new Error('GH_AW_SAFE_OUTPUTS is not available.');
-  }
-  fs.appendFileSync(
-    safeOutputsPath,
-    `${JSON.stringify({ type: 'noop', message })}\n`
-  );
 }
 
 function sanitizeAgentReason(reason) {
@@ -1149,7 +1141,6 @@ module.exports = {
   API_VERSION,
   DEFAULT_MODEL,
   DISPATCH_EVENT_TYPE,
-  appendNoop,
   assignAlertToTeam,
   buildDispatchPayload,
   buildReviewContext,
@@ -1161,8 +1152,6 @@ module.exports = {
   getAgenticSettings,
   getAlert,
   getAssignedLogins,
-  isAssignedToTeam,
-  isOpenDismissalRequest,
   listEnterpriseTeamMembers,
   loadConfig,
   mergeAssignees,
