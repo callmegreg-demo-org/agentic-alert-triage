@@ -428,6 +428,98 @@ For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-te
     assert.ok(serialized.length <= 60000);
   });
 
+  it('accepts a null request number only for secret scanning', () => {
+    const payload = buildDispatchPayload({
+      organization: 'octo-org',
+      enterprise: 'octo-enterprise',
+      teamSlug: 'ent:appsec-team',
+      sourceRepository: WORKFLOW_REPOSITORY,
+      repository: 'octo-org/service',
+      repositoryId: 101,
+      alertType: 'secret_scanning',
+      alertNumber: 12,
+      dismissalRequest: {
+        id: 99,
+        number: null,
+        repository_id: 101,
+        requester_login: 'octocat',
+        request_type: 'secret_scanning_closure',
+        status: 'pending',
+        exemption_request_data: {
+          type: 'secret_scanning_closure',
+          data: [{ alert_number: 12 }],
+        },
+      },
+      teamLogins: ['security-one'],
+      model: 'auto',
+      webhookEvent: 'dismissal_request_secret_scanning',
+      installationId: 44,
+    });
+
+    assert.equal(payload.target.dismissal_request_number, null);
+    assert.equal(payload.request.number, null);
+
+    const event = createDispatchEvent({
+      target: payload.target,
+      request: payload.request,
+      review: payload.review,
+      source: payload.source,
+      dry_run: payload.dry_run,
+    });
+    const target = validateDispatchEvent(
+      event,
+      agenticConfig(),
+      validationEnv()
+    );
+    assert.equal(target.dismissalRequestNumber, null);
+
+    const missingNumber = createDispatchEvent({
+      target: { ...payload.target },
+      request: { ...payload.request },
+      review: payload.review,
+      source: payload.source,
+      dry_run: payload.dry_run,
+    });
+    delete missingNumber.client_payload.target.dismissal_request_number;
+    delete missingNumber.client_payload.request.number;
+    assert.throws(
+      () =>
+        validateDispatchEvent(
+          missingNumber,
+          agenticConfig(),
+          validationEnv()
+        ),
+      /Invalid dismissal request number/
+    );
+
+    assert.throws(
+      () =>
+        buildDispatchPayload({
+          organization: 'octo-org',
+          enterprise: 'octo-enterprise',
+          teamSlug: 'ent:appsec-team',
+          sourceRepository: WORKFLOW_REPOSITORY,
+          repository: 'octo-org/service',
+          repositoryId: 101,
+          alertType: 'code_scanning',
+          alertNumber: 12,
+          dismissalRequest: {
+            ...payload.request,
+            exemption_request_data_type: undefined,
+            exemption_request_data: {
+              type: 'code_scanning_alert_dismissal',
+              data: [{ alert_number: 12 }],
+            },
+          },
+          teamLogins: ['security-one'],
+          model: 'auto',
+          webhookEvent: 'dismissal_request_code_scanning',
+          installationId: 44,
+        }),
+      /Invalid dismissal request number/
+    );
+  });
+
   it('rejects inconsistent event, request type, and repository identity', () => {
     const base = {
       organization: 'octo-org',
