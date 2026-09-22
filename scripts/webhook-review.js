@@ -738,6 +738,7 @@ function createWebhookReviewHandler(options) {
                 requester: event.dismissalRequest.requester_login,
                 denialReason: commentValidation.reason,
                 repoFullName: event.repository,
+                helpContact: settings.helpContact,
               },
               config
             );

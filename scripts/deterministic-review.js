@@ -65,17 +65,13 @@ function validateDismissalComment(comment, rules = {}) {
 }
 
 function getDefaultDenialTemplate() {
-  return `DISMISSAL REQUEST DENIED
+  return `DISMISSAL REQUEST DENIED.
 
-Review: Automated criteria
-Alert: {alert_type} #{alert_number}
-Requester: {requester}
-Status: The dismissal comment did not meet the required criteria
 Reason: {denial_reason}
 
-Next step: Submit a new dismissal request with an updated comment that satisfies the requirements.
+Next step: Create a supporting issue, then add its URL to a new dismissal request: https://github.com/{repo_full_name}/issues/new
 
-Source: Alert Dismissal Automation for {repo_full_name}`;
+For more help, mention the {help_contact}`;
 }
 
 function formatDenialMessage(
@@ -85,6 +81,7 @@ function formatDenialMessage(
     requester,
     denialReason,
     repoFullName,
+    helpContact,
   },
   config = {}
 ) {
@@ -100,7 +97,8 @@ function formatDenialMessage(
     .replace(/{requester}/g, requester || 'unknown')
     .replace(/{required_phrase}/g, config.required_phrase || '')
     .replace(/{denial_reason}/g, denialReason)
-    .replace(/{repo_full_name}/g, repoFullName);
+    .replace(/{repo_full_name}/g, repoFullName)
+    .replace(/{help_contact}/g, helpContact || '');
 }
 
 module.exports = {
