@@ -319,10 +319,15 @@ function validateWebhookContext(context, eventName) {
     request.id,
     'dismissal request ID'
   );
-  const requestNumber = requirePositiveInteger(
-    request.number,
-    'dismissal request number'
-  );
+  const requestNumber =
+    eventMetadata.alertType === 'secret_scanning' &&
+    Object.hasOwn(request, 'number') &&
+    request.number === null
+      ? null
+      : requirePositiveInteger(
+          request.number,
+          'dismissal request number'
+        );
   const requestRepositoryId = requirePositiveInteger(
     request.repository_id,
     'dismissal request repository ID'

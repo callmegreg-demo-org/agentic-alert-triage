@@ -212,6 +212,25 @@ function normalizePositiveInteger(value, label, maximum = Number.MAX_SAFE_INTEGE
   return normalized;
 }
 
+function normalizeDismissalRequestNumber(
+  object,
+  property,
+  alertType,
+  label = 'dismissal request number'
+) {
+  if (
+    !object ||
+    typeof object !== 'object' ||
+    !Object.hasOwn(object, property)
+  ) {
+    throw new Error(`Invalid ${label} "undefined".`);
+  }
+  if (alertType === 'secret_scanning' && object[property] === null) {
+    return null;
+  }
+  return normalizePositiveInteger(object[property], label);
+}
+
 function normalizeDeliveryId(value) {
   if (value == null || value === '') return null;
   const deliveryId = String(value);
@@ -277,14 +296,15 @@ function buildDispatchPayload({
     throw new Error('The configured AppSec team has no members.');
   }
 
+  const dismissalRequestNumber = normalizeDismissalRequestNumber(
+    dismissalRequest,
+    'number',
+    alertType
+  );
   const request = sanitizeDismissalRequest(dismissalRequest);
   const dismissalRequestId = normalizePositiveInteger(
     request.id,
     'dismissal request ID'
-  );
-  const dismissalRequestNumber = normalizePositiveInteger(
-    request.number,
-    'dismissal request number'
   );
   if (
     request.repository_id != null &&
@@ -858,15 +878,23 @@ function validateDispatchEvent(event, config, env = process.env) {
     dispatchedTarget.dismissal_request_id,
     'dismissal request ID'
   );
-  const dismissalRequestNumber = normalizePositiveInteger(
-    dispatchedTarget.dismissal_request_number,
-    'dismissal request number'
+  const dismissalRequestNumber = normalizeDismissalRequestNumber(
+    dispatchedTarget,
+    'dismissal_request_number',
+    dispatchedTarget.alert_type
   );
 
-  const dismissalRequest = sanitizeDismissalRequest(payload.request || {});
+  const dispatchedRequest = payload.request || {};
+  const snapshotRequestNumber = normalizeDismissalRequestNumber(
+    dispatchedRequest,
+    'number',
+    dispatchedTarget.alert_type,
+    'request snapshot dismissal request number'
+  );
+  const dismissalRequest = sanitizeDismissalRequest(dispatchedRequest);
   if (
     Number(dismissalRequest.id) !== dismissalRequestId ||
-    Number(dismissalRequest.number) !== dismissalRequestNumber
+    snapshotRequestNumber !== dismissalRequestNumber
   ) {
     throw new Error(
       'Dispatch request snapshot does not match the target request identifiers.'

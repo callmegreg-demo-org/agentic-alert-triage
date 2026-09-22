@@ -569,6 +569,54 @@ describe('webhook registration and validation', () => {
     );
   });
 
+  it('accepts an explicit null request number only for secret scanning', async () => {
+    const harness = createHarness();
+    const secretContext = createContext({
+      alertType: 'secret_scanning',
+      payload: createPayload('secret_scanning', {
+        requestOverrides: { number: null },
+      }),
+      octokit: harness.incomingOctokit,
+    });
+
+    await harness.handler(
+      secretContext,
+      'dismissal_request_secret_scanning'
+    );
+
+    const dispatch =
+      harness.calls.controlRequests[0].parameters.client_payload;
+    assert.equal(dispatch.target.dismissal_request_number, null);
+    assert.equal(dispatch.request.number, null);
+
+    assert.throws(
+      () =>
+        validateWebhookContext(
+          createContext({
+            payload: createPayload('code_scanning', {
+              requestOverrides: { number: null },
+            }),
+          }),
+          'dismissal_request_code_scanning'
+        ),
+      /dismissal request number/
+    );
+
+    const missingNumberPayload = createPayload('secret_scanning');
+    delete missingNumberPayload.exemption_request.number;
+    assert.throws(
+      () =>
+        validateWebhookContext(
+          createContext({
+            alertType: 'secret_scanning',
+            payload: missingNumberPayload,
+          }),
+          'dismissal_request_secret_scanning'
+        ),
+      /dismissal request number/
+    );
+  });
+
   it('safely ignores subscribed alert types disabled in config', async () => {
     const harness = createHarness({
       config: createConfig({ alert_types: ['code_scanning'] }),
