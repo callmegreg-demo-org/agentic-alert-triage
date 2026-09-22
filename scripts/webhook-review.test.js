@@ -754,6 +754,12 @@ describe('review modes and retry behavior', () => {
       config: createConfig({
         review_mode: 'deterministic',
         required_phrase: 'approved exception',
+        agentic: {
+          workflow_repository: WORKFLOW_REPOSITORY,
+          appsec_team_slug: 'ent:appsec-team',
+          help_contact: 'Enterprise security desk',
+          staged: true,
+        },
       }),
     });
 
@@ -772,6 +778,16 @@ describe('review modes and retry behavior', () => {
     assert.equal(
       harness.calls.incomingRequests[0].endpoint,
       'PATCH /repos/{owner}/{repo}/dismissal-requests/code-scanning/{alert_number}'
+    );
+    assert.equal(
+      harness.calls.incomingRequests[0].parameters.message,
+      `DISMISSAL REQUEST DENIED.
+
+Reason: The dismissal comment did not include the required phrase: "approved exception"
+
+Next step: Create a supporting issue, then add its URL to a new dismissal request: https://github.com/octo-org/service/issues/new
+
+For more help, mention the Enterprise security desk`
     );
     assert.deepEqual(harness.calls.appAuth, [null]);
     assert.equal(harness.calls.teamLookups.length, 0);

@@ -65,12 +65,12 @@ cache:
 
 # Deterministic denial placeholders:
 # {alert_type}, {alert_number}, {required_phrase}, {denial_reason},
-# {requester}, {repo_full_name}
+# {requester}, {repo_full_name}, {help_contact}
 denial_message: |
-  DISMISSAL REQUEST DENIED
-  Review: Automated criteria
-  Alert: {alert_type} #{alert_number}
-  Requester: {requester}
-  Status: The dismissal comment did not meet the required criteria
+  DISMISSAL REQUEST DENIED.
+
   Reason: {denial_reason}
+
   Next step: Create a supporting issue, then add its URL to a new dismissal request: https://github.com/{repo_full_name}/issues/new
+
+  For more help, mention the {help_contact}

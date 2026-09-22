@@ -164,7 +164,7 @@ from the validated webhook snapshot, never the control repository owner or
 | `agentic.model` | `auto` | Copilot model used by the agentic workflow |
 | `agentic.appsec_team_slug` | `ent:appsec-team` | Enterprise team with the Security Manager role; `ent:` is required |
 | `agentic.staged` | `true` | Preview SafeOutput writes |
-| `agentic.help_contact` | `Enterprise AppSec team in your alert (@/ent:appsec-team)` | Contact text included in agentic denials |
+| `agentic.help_contact` | `Enterprise AppSec team in your alert (@/ent:appsec-team)` | Contact text included in denial messages |
 | `agentic.denial_message` | built-in | Optional agentic denial template |
 | `denial_message` | built-in | Optional deterministic denial template |
 | `cache.app_identity_ttl_seconds` | `600` | App ownership cache TTL, 1-3600 seconds |
@@ -177,7 +177,8 @@ from the validated webhook snapshot, never the control repository owner or
 Agentic denial placeholders are `{requester}`, `{denial_reason}`,
 `{help_contact}`, `{alert_type}`, `{alert_number}`, and `{repo_full_name}`.
 Deterministic denial placeholders are `{alert_type}`, `{alert_number}`,
-`{required_phrase}`, `{denial_reason}`, `{requester}`, and `{repo_full_name}`.
+`{required_phrase}`, `{denial_reason}`, `{requester}`, `{repo_full_name}`, and
+`{help_contact}`.
 
 Denial request responses are rendered as plain text by GitHub. The built-in
 agentic denial uses the validated enterprise-team mention
