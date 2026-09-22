@@ -569,54 +569,6 @@ describe('webhook registration and validation', () => {
     );
   });
 
-  it('accepts an explicit null request number only for secret scanning', async () => {
-    const harness = createHarness();
-    const secretContext = createContext({
-      alertType: 'secret_scanning',
-      payload: createPayload('secret_scanning', {
-        requestOverrides: { number: null },
-      }),
-      octokit: harness.incomingOctokit,
-    });
-
-    await harness.handler(
-      secretContext,
-      'dismissal_request_secret_scanning'
-    );
-
-    const dispatch =
-      harness.calls.controlRequests[0].parameters.client_payload;
-    assert.equal(dispatch.target.dismissal_request_number, null);
-    assert.equal(dispatch.request.number, null);
-
-    assert.throws(
-      () =>
-        validateWebhookContext(
-          createContext({
-            payload: createPayload('code_scanning', {
-              requestOverrides: { number: null },
-            }),
-          }),
-          'dismissal_request_code_scanning'
-        ),
-      /dismissal request number/
-    );
-
-    const missingNumberPayload = createPayload('secret_scanning');
-    delete missingNumberPayload.exemption_request.number;
-    assert.throws(
-      () =>
-        validateWebhookContext(
-          createContext({
-            alertType: 'secret_scanning',
-            payload: missingNumberPayload,
-          }),
-          'dismissal_request_secret_scanning'
-        ),
-      /dismissal request number/
-    );
-  });
-
   it('safely ignores subscribed alert types disabled in config', async () => {
     const harness = createHarness({
       config: createConfig({ alert_types: ['code_scanning'] }),
@@ -674,6 +626,7 @@ describe('agentic webhook dispatch', () => {
         alertNumbers: [21],
         comment:
           'Rotated github_pat_12345678901234567890; see the linked issue.',
+        requestOverrides: { number: null },
       }),
       alertType: 'secret_scanning',
       octokit: harness.incomingOctokit,
@@ -690,6 +643,8 @@ describe('agentic webhook dispatch', () => {
     assert.equal(dispatch.schema_version, 1);
     assert.equal(dispatch.target.alert_type, 'secret_scanning');
     assert.equal(dispatch.target.repository_id, 101);
+    assert.equal(dispatch.target.dismissal_request_number, null);
+    assert.equal(dispatch.request.number, null);
     assert.equal(
       dispatch.request.exemption_request_data_type,
       'secret_scanning_closure'
@@ -713,6 +668,38 @@ describe('agentic webhook dispatch', () => {
         endpoint.includes('dismissal-requests')
       ),
       false
+    );
+  });
+
+  it('requires request numbers for non-secret-scanning webhooks', () => {
+    for (const alertType of ['code_scanning', 'dependabot']) {
+      assert.throws(
+        () =>
+          validateWebhookContext(
+            createContext({
+              alertType,
+              payload: createPayload(alertType, {
+                requestOverrides: { number: null },
+              }),
+            }),
+            EVENT_DEFINITIONS[alertType].eventName
+          ),
+        /Invalid dismissal request number/
+      );
+    }
+  });
+
+  it('rejects a missing secret-scanning request number', () => {
+    const payload = createPayload('secret_scanning');
+    delete payload.exemption_request.number;
+
+    assert.throws(
+      () =>
+        validateWebhookContext(
+          createContext({ alertType: 'secret_scanning', payload }),
+          'dismissal_request_secret_scanning'
+        ),
+      /Invalid dismissal request number/
     );
   });
 

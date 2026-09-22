@@ -320,9 +320,7 @@ function validateWebhookContext(context, eventName) {
     'dismissal request ID'
   );
   const requestNumber =
-    eventMetadata.alertType === 'secret_scanning' &&
-    Object.hasOwn(request, 'number') &&
-    request.number === null
+    eventMetadata.alertType === 'secret_scanning' && request.number === null
       ? null
       : requirePositiveInteger(
           request.number,

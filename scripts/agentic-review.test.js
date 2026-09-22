@@ -428,7 +428,7 @@ For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-te
     assert.ok(serialized.length <= 60000);
   });
 
-  it('builds secret scanning dispatches with an explicit null request number', () => {
+  it('accepts a null request number only for secret scanning', () => {
     const payload = buildDispatchPayload({
       organization: 'octo-org',
       enterprise: 'octo-enterprise',
@@ -443,8 +443,8 @@ For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-te
         number: null,
         repository_id: 101,
         requester_login: 'octocat',
-        request_type: 'dismiss',
-        status: 'open',
+        request_type: 'secret_scanning_closure',
+        status: 'pending',
         exemption_request_data: {
           type: 'secret_scanning_closure',
           data: [{ alert_number: 12 }],
@@ -458,57 +458,65 @@ For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-te
 
     assert.equal(payload.target.dismissal_request_number, null);
     assert.equal(payload.request.number, null);
-  });
 
-  it('rejects null or missing request numbers when building other dispatches', () => {
-    const base = {
-      organization: 'octo-org',
-      enterprise: 'octo-enterprise',
-      teamSlug: 'ent:appsec-team',
-      sourceRepository: WORKFLOW_REPOSITORY,
-      repository: 'octo-org/service',
-      repositoryId: 101,
-      alertType: 'code_scanning',
-      alertNumber: 12,
-      dismissalRequest: {
-        id: 99,
-        number: null,
-        repository_id: 101,
-        requester_login: 'octocat',
-        request_type: 'dismiss',
-        status: 'open',
-        exemption_request_data: {
-          type: 'code_scanning_alert_dismissal',
-          data: [{ alert_number: 12 }],
-        },
-      },
-      teamLogins: ['security-one'],
-      model: 'auto',
-      webhookEvent: 'dismissal_request_code_scanning',
-      installationId: 44,
-    };
+    const event = createDispatchEvent({
+      target: payload.target,
+      request: payload.request,
+      review: payload.review,
+      source: payload.source,
+      dry_run: payload.dry_run,
+    });
+    const target = validateDispatchEvent(
+      event,
+      agenticConfig(),
+      validationEnv()
+    );
+    assert.equal(target.dismissalRequestNumber, null);
 
+    const missingNumber = createDispatchEvent({
+      target: { ...payload.target },
+      request: { ...payload.request },
+      review: payload.review,
+      source: payload.source,
+      dry_run: payload.dry_run,
+    });
+    delete missingNumber.client_payload.target.dismissal_request_number;
+    delete missingNumber.client_payload.request.number;
     assert.throws(
-      () => buildDispatchPayload(base),
-      /dismissal request number/
+      () =>
+        validateDispatchEvent(
+          missingNumber,
+          agenticConfig(),
+          validationEnv()
+        ),
+      /Invalid dismissal request number/
     );
 
-    const secretWithoutNumber = {
-      ...base,
-      alertType: 'secret_scanning',
-      webhookEvent: 'dismissal_request_secret_scanning',
-      dismissalRequest: {
-        ...base.dismissalRequest,
-        exemption_request_data: {
-          type: 'secret_scanning_closure',
-          data: [{ alert_number: 12 }],
-        },
-      },
-    };
-    delete secretWithoutNumber.dismissalRequest.number;
     assert.throws(
-      () => buildDispatchPayload(secretWithoutNumber),
-      /dismissal request number/
+      () =>
+        buildDispatchPayload({
+          organization: 'octo-org',
+          enterprise: 'octo-enterprise',
+          teamSlug: 'ent:appsec-team',
+          sourceRepository: WORKFLOW_REPOSITORY,
+          repository: 'octo-org/service',
+          repositoryId: 101,
+          alertType: 'code_scanning',
+          alertNumber: 12,
+          dismissalRequest: {
+            ...payload.request,
+            exemption_request_data_type: undefined,
+            exemption_request_data: {
+              type: 'code_scanning_alert_dismissal',
+              data: [{ alert_number: 12 }],
+            },
+          },
+          teamLogins: ['security-one'],
+          model: 'auto',
+          webhookEvent: 'dismissal_request_code_scanning',
+          installationId: 44,
+        }),
+      /Invalid dismissal request number/
     );
   });
 
@@ -597,77 +605,6 @@ For more help, mention the Enterprise AppSec team in your alert (@/ent:appsec-te
       () =>
         validateDispatchEvent(event, agenticConfig(), validationEnv()),
       /outside target organization/
-    );
-  });
-
-  it('validates an explicit null request number only for secret scanning', () => {
-    const secretEvent = createDispatchEvent();
-    secretEvent.client_payload.target.alert_type = 'secret_scanning';
-    secretEvent.client_payload.target.dismissal_request_number = null;
-    secretEvent.client_payload.request.number = null;
-    secretEvent.client_payload.request.exemption_request_data_type =
-      'secret_scanning_closure';
-    secretEvent.client_payload.source.webhook_event =
-      'dismissal_request_secret_scanning';
-
-    const target = validateDispatchEvent(
-      secretEvent,
-      agenticConfig(),
-      validationEnv()
-    );
-    assert.equal(target.dismissalRequestNumber, null);
-    assert.equal(target.dismissalRequest.number, null);
-
-    const nonSecretEvent = createDispatchEvent();
-    nonSecretEvent.client_payload.target.dismissal_request_number = null;
-    nonSecretEvent.client_payload.request.number = null;
-    assert.throws(
-      () =>
-        validateDispatchEvent(
-          nonSecretEvent,
-          agenticConfig(),
-          validationEnv()
-        ),
-      /dismissal request number/
-    );
-
-    const missingTargetNumber = createDispatchEvent();
-    missingTargetNumber.client_payload.target.alert_type = 'secret_scanning';
-    missingTargetNumber.client_payload.request.number = null;
-    missingTargetNumber.client_payload.request.exemption_request_data_type =
-      'secret_scanning_closure';
-    missingTargetNumber.client_payload.source.webhook_event =
-      'dismissal_request_secret_scanning';
-    delete missingTargetNumber.client_payload.target
-      .dismissal_request_number;
-    assert.throws(
-      () =>
-        validateDispatchEvent(
-          missingTargetNumber,
-          agenticConfig(),
-          validationEnv()
-        ),
-      /dismissal request number/
-    );
-
-    const missingSnapshotNumber = createDispatchEvent();
-    missingSnapshotNumber.client_payload.target.alert_type =
-      'secret_scanning';
-    missingSnapshotNumber.client_payload.target.dismissal_request_number =
-      null;
-    missingSnapshotNumber.client_payload.request.exemption_request_data_type =
-      'secret_scanning_closure';
-    missingSnapshotNumber.client_payload.source.webhook_event =
-      'dismissal_request_secret_scanning';
-    delete missingSnapshotNumber.client_payload.request.number;
-    assert.throws(
-      () =>
-        validateDispatchEvent(
-          missingSnapshotNumber,
-          agenticConfig(),
-          validationEnv()
-        ),
-      /request snapshot dismissal request number/
     );
   });
 
