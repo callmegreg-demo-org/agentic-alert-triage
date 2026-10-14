@@ -749,11 +749,211 @@ describe('agentic webhook dispatch', () => {
 });
 
 describe('review modes and retry behavior', () => {
+  it('permits all dismissal reasons by default in deterministic review modes', async () => {
+    for (const reviewMode of ['deterministic', 'both']) {
+      for (const [alertType, definition] of Object.entries(EVENT_DEFINITIONS)) {
+        const harness = createHarness({
+          config: createConfig({ review_mode: reviewMode }),
+        });
+        const result = await harness.handler(
+          createContext({
+            alertType,
+            payload: createPayload(alertType, { alertNumbers: [8, 9] }),
+            octokit: harness.incomingOctokit,
+          }),
+          definition.eventName
+        );
+        assert.equal(result.action, reviewMode === 'deterministic' ? 'leave_open' : 'dispatched');
+        assert.equal(harness.calls.incomingRequests.length, 0);
+        assert.equal(harness.calls.controlRequests.length, reviewMode === 'both' ? 2 : 0);
+      }
+    }
+  });
+
+  it('denies disallowed reasons for every alert type with resubmission guidance', async () => {
+    for (const reviewMode of ['deterministic', 'both']) {
+      for (const [alertType, definition] of Object.entries(EVENT_DEFINITIONS)) {
+        const harness = createHarness({
+          config: createConfig({
+            review_mode: reviewMode,
+            required_phrase: 'missing phrase',
+            allowed_dismissal_reasons: {
+              [alertType]: ['false positive', 'revoked'],
+            },
+            denial_message: 'Policy denied: {denial_reason}',
+          }),
+        });
+        const result = await harness.handler(
+          createContext({ alertType, octokit: harness.incomingOctokit }),
+          definition.eventName
+        );
+        assert.equal(result.action, 'denied');
+        assert.equal(harness.calls.incomingRequests.length, 1);
+        const { endpoint, parameters } = harness.calls.incomingRequests[0];
+        const segment = alertType.replace(/_/g, '-');
+        assert.equal(endpoint, `PATCH /repos/{owner}/{repo}/dismissal-requests/${segment}/{alert_number}`);
+        assert.equal(parameters.status, 'deny');
+        assert.equal(parameters.message,
+          `Policy denied: The dismissal reason is not permitted for ${alertType.replace(/_/g, ' ')}. Please resubmit the dismissal request using one of the permitted reasons: false positive, revoked.`
+        );
+        assert.equal(harness.calls.controlRequests.length, 0);
+        assert.equal(harness.calls.teamLookups.length, 0);
+        assert.deepEqual(harness.calls.appAuth, [null]);
+      }
+    }
+  });
+
+  it('leaves permitted reasons open or dispatches them according to the review mode', async () => {
+    for (const reviewMode of ['deterministic', 'both']) {
+      for (const [alertType, definition] of Object.entries(EVENT_DEFINITIONS)) {
+        const harness = createHarness({
+          config: createConfig({
+            review_mode: reviewMode,
+            allowed_dismissal_reasons: { [alertType]: ['used in tests'] },
+          }),
+        });
+        const result = await harness.handler(
+          createContext({ alertType, octokit: harness.incomingOctokit }),
+          definition.eventName
+        );
+        assert.equal(result.action, reviewMode === 'deterministic' ? 'leave_open' : 'dispatched');
+        assert.equal(harness.calls.incomingRequests.length, 0);
+        assert.equal(harness.calls.controlRequests.length, reviewMode === 'both' ? 1 : 0);
+      }
+    }
+  });
+
+  it('does not restrict alert types omitted from the reason policy', async () => {
+    const harness = createHarness({
+      config: createConfig({
+        review_mode: 'deterministic',
+        allowed_dismissal_reasons: { code_scanning: ['false positive'] },
+      }),
+    });
+    const result = await harness.handler(
+      createContext({ alertType: 'dependabot', octokit: harness.incomingOctokit }),
+      'dismissal_request_dependabot'
+    );
+    assert.equal(result.action, 'leave_open');
+    assert.equal(harness.calls.incomingRequests.length, 0);
+  });
+
+  it('denies missing reasons only when an allowlist is configured', async () => {
+    for (const reason of [undefined, null, 42, '']) {
+      const harness = createHarness({
+        config: createConfig({
+          review_mode: 'deterministic',
+          allowed_dismissal_reasons: { code_scanning: ['false positive'] },
+        }),
+      });
+      const payload = createPayload();
+      payload.exemption_request.exemption_request_data.data[0].reason = reason;
+      const result = await harness.handler(
+        createContext({ payload, octokit: harness.incomingOctokit }),
+        'dismissal_request_code_scanning'
+      );
+      assert.equal(result.action, 'denied');
+      assert.match(harness.calls.incomingRequests[0].parameters.message,
+        /Please resubmit the dismissal request using one of the permitted reasons: false positive\./
+      );
+    }
+  });
+
+  it('reviews mixed reasons per alert and still deduplicates retries', async () => {
+    for (const reviewMode of ['deterministic', 'both']) {
+      const harness = createHarness({
+        config: createConfig({
+          review_mode: reviewMode,
+          allowed_dismissal_reasons: { secret_scanning: ['used in tests'] },
+        }),
+      });
+      const payload = createPayload('secret_scanning', { alertNumbers: [8, 9, 8, 10] });
+      for (const item of payload.exemption_request.exemption_request_data.data) {
+        item.reason = item.alert_number === 9 ? 'accepted risk' : 'used in tests';
+      }
+      const context = createContext({
+        alertType: 'secret_scanning',
+        payload,
+        octokit: harness.incomingOctokit,
+      });
+      const result = await harness.handler(context, 'dismissal_request_secret_scanning');
+      assert.equal(result.action, 'mixed');
+      assert.deepEqual(result.results.map(({ value }) => value), [
+        { action: reviewMode === 'deterministic' ? 'leave_open' : 'dispatched', alertNumber: 8 },
+        { action: 'denied', alertNumber: 9 },
+        { action: reviewMode === 'deterministic' ? 'leave_open' : 'dispatched', alertNumber: 10 },
+      ]);
+      assert.deepEqual(harness.calls.incomingRequests.map(({ parameters }) => parameters.alert_number), [9]);
+      assert.deepEqual(
+        harness.calls.controlRequests.map(({ parameters }) => parameters.client_payload.target.alert_number),
+        reviewMode === 'both' ? [8, 10] : []
+      );
+
+      const retry = await harness.handler(context, 'dismissal_request_secret_scanning');
+      assert.equal(retry.duplicateCount, reviewMode === 'both' ? 3 : 1);
+      assert.equal(harness.calls.incomingRequests.length, 1);
+      assert.equal(harness.calls.controlRequests.length, reviewMode === 'both' ? 2 : 0);
+    }
+  });
+
+  it('denies conflicting duplicate alert reasons once regardless of their order', async () => {
+    for (const reasons of [
+      ['used in tests', 'accepted risk'],
+      ['accepted risk', 'used in tests'],
+    ]) {
+      const harness = createHarness({
+        config: createConfig({
+          review_mode: 'both',
+          allowed_dismissal_reasons: { code_scanning: ['used in tests'] },
+        }),
+      });
+      const payload = createPayload('code_scanning', { alertNumbers: [8, 8] });
+      payload.exemption_request.exemption_request_data.data.forEach((item, index) => {
+        item.reason = reasons[index];
+      });
+      const result = await harness.handler(
+        createContext({ payload, octokit: harness.incomingOctokit }),
+        'dismissal_request_code_scanning'
+      );
+      assert.equal(result.action, 'denied');
+      assert.equal(harness.calls.incomingRequests.length, 1);
+      assert.equal(harness.calls.controlRequests.length, 0);
+    }
+  });
+
+  it('validates reason policy configuration only in deterministic review modes', async () => {
+    for (const reviewMode of ['deterministic', 'both']) {
+      assert.throws(
+        () => createHarness({
+          config: createConfig({ review_mode: reviewMode, allowed_dismissal_reasons: [] }),
+        }),
+        /allowed_dismissal_reasons must be an object/
+      );
+    }
+
+    for (const policy of [[], { code_scanning: ['false positive'] }]) {
+      const harness = createHarness({
+        config: createConfig({ review_mode: 'agentic', allowed_dismissal_reasons: policy }),
+      });
+      const result = await harness.handler(
+        createContext({ octokit: harness.incomingOctokit }),
+        'dismissal_request_code_scanning'
+      );
+      assert.equal(result.action, 'dispatched');
+      assert.equal(harness.calls.incomingRequests.length, 0);
+      assert.equal(harness.calls.controlRequests.length, 1);
+      const dispatch = harness.calls.controlRequests[0].parameters.client_payload;
+      assert.deepEqual(dispatch.request.dismissal_reasons, ['used in tests']);
+      assert.equal(JSON.stringify(dispatch).includes('allowed_dismissal_reasons'), false);
+    }
+  });
+
   it('denies invalid deterministic requests with the incoming installation token', async () => {
     const harness = createHarness({
       config: createConfig({
         review_mode: 'deterministic',
         required_phrase: 'approved exception',
+        allowed_dismissal_reasons: { code_scanning: ['used in tests'] },
         agentic: {
           workflow_repository: WORKFLOW_REPOSITORY,
           appsec_team_slug: 'ent:appsec-team',

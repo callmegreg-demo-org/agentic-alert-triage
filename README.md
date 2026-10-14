@@ -7,7 +7,7 @@ review, or both.
 
 | Mode | Behavior |
 |---|---|
-| `deterministic` | Immediately deny requests whose comments fail configured phrase, pattern, or length checks. Passing requests remain open. |
+| `deterministic` | Immediately deny requests whose dismissal reasons or comments fail configured checks. Passing requests remain open. |
 | `agentic` | Send every created request to the central gh-aw workflow for contextual review. |
 | `both` | Deny deterministic failures immediately and dispatch passing requests for agentic review. |
 
@@ -23,9 +23,9 @@ review.
    scanning alerts.
 
 2. **The configured review mode determines the checks.**
-   - Deterministic review checks whether the request comment meets configured
-     phrase, pattern, and minimum-length requirements. Requests that fail are
-     denied immediately.
+   - Deterministic review checks whether each alert's dismissal reason is
+     permitted and the request comment meets configured phrase, pattern, and
+     minimum-length requirements. Alerts that fail are denied immediately.
    - Agentic review evaluates whether the dismissal reason is clear and
      relevant, the justification explains why dismissal is appropriate, and
      the supporting evidence is concrete, verifiable, and consistent with the
@@ -155,6 +155,7 @@ from the validated webhook snapshot, never the control repository owner or
 |---|---|---|
 | `enterprise` | required | Enterprise URL slug that must own the App |
 | `review_mode` | `both` | `deterministic`, `agentic`, or `both` |
+| `allowed_dismissal_reasons` | all reasons | Optional per-alert-type reason allowlists, enforced only by deterministic review |
 | `required_phrase` | none | Phrase required in the requester comment |
 | `required_pattern` | none | JavaScript regular expression required in the requester comment |
 | `minimum_length` | none | Minimum trimmed requester-comment length |
@@ -173,6 +174,33 @@ from the validated webhook snapshot, never the control repository owner or
 | `cache.control_installation_ttl_seconds` | `600` | Control installation cache TTL, 1-3600 seconds |
 | `cache.delivery_dedupe_ttl_seconds` | `900` | Successful operation dedupe TTL, 1-3600 seconds |
 | `cache.delivery_dedupe_max_entries` | `1000` | Delivery cache size, 1-10000 |
+
+To restrict dismissal reasons, add per-alert-type allowlists:
+
+```yaml
+allowed_dismissal_reasons:
+  code_scanning: ["false positive"]
+  dependabot: ["accepted risk"]
+  secret_scanning: ["used in tests", "revoked"]
+```
+
+Omitting `allowed_dismissal_reasons`, using `{}`, or omitting an alert type
+permits all reasons for that type. Each configured list must be non-empty and
+contain non-empty strings of at most 100 characters. Use the exact reason
+strings from `exemption_request.exemption_request_data.data[].reason` in the
+signed webhook. Matching is always case-sensitive, independently of
+`case_sensitive`.
+
+In `deterministic` and `both` modes, a disallowed or missing reason is denied
+with guidance to resubmit the dismissal request using one of the configured
+permitted reasons. If a custom deterministic denial template omits
+`{denial_reason}`, the explanation is prepended so the guidance is still
+included. Checks apply per unique alert; if
+duplicate entries have conflicting reasons, any disallowed reason denies
+that alert. Other alerts in the same request continue through their normal
+review path. The existing comment requirements still apply to permitted
+reasons. In `agentic` mode this option is ignored, including its configuration
+validation, and neither the agent context nor the agentic policy is changed.
 
 Agentic denial placeholders are `{requester}`, `{denial_reason}`,
 `{help_contact}`, `{alert_type}`, `{alert_number}`, and `{repo_full_name}`.
