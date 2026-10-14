@@ -4,17 +4,27 @@
 # organization is not supported. No organization allowlist is needed.
 enterprise: avocado-corp
 
-# deterministic: deny comments that fail the configured criteria.
+# deterministic: deny requests that fail the configured criteria.
 # agentic: dispatch every created request to the gh-aw workflow.
 # both: deny deterministic failures and dispatch passing requests.
 review_mode: both
 
-# Optional deterministic criteria. If all are omitted, every comment passes.
+# Optional deterministic criteria. If all are omitted, every request passes.
 # required_phrase: "mitigating control"
 # URL-format check only; agentic evidence remains restricted to the target org.
 required_pattern: "https://github\\.com/[a-zA-Z0-9-]+/[a-zA-Z0-9._-]+/issues/\\d+"
 # minimum_length: 20
 case_sensitive: false
+
+# Optional deterministic-only reason allowlists, matched exactly against the
+# reason strings in the signed webhook.
+# Omit this option or an alert type to permit all its reasons. Configured lists
+# must be non-empty, with non-empty strings of at most 100 characters each.
+# Agentic-only review ignores this option.
+# allowed_dismissal_reasons:
+#   code_scanning: ["false positive"]
+#   dependabot: ["accepted risk"]
+#   secret_scanning: ["used in tests", "revoked"]
 
 # All three official dismissal-request webhook categories are enabled by
 # default. Remove a value to ignore that subscribed event safely.

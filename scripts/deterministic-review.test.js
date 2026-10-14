@@ -6,6 +6,7 @@ const {
   formatDenialMessage,
   getDeterministicRules,
   validateDismissalComment,
+  validateDismissalReasons,
 } = require('./deterministic-review');
 
 describe('deterministic dismissal review', () => {
@@ -23,14 +24,97 @@ describe('deterministic dismissal review', () => {
         required_pattern: '^SEC-\\d+',
         minimum_length: 20,
         case_sensitive: true,
+        allowed_dismissal_reasons: {
+          code_scanning: ['false positive', 'false positive'],
+          dependabot: ['accepted risk'],
+          secret_scanning: ['used in tests', 'revoked'],
+        },
       }),
       {
+        allowedDismissalReasons: {
+          code_scanning: ['false positive'],
+          dependabot: ['accepted risk'],
+          secret_scanning: ['used in tests', 'revoked'],
+        },
         requiredPhrase: 'approved exception',
         requiredPattern: '^SEC-\\d+',
         minimumLength: 20,
         caseSensitive: true,
       }
     );
+  });
+
+  it('permits every reason by default and for alert types without an allowlist', () => {
+    const defaultRules = getDeterministicRules();
+    assert.deepEqual(defaultRules.allowedDismissalReasons, {});
+    for (const alertType of ['code_scanning', 'dependabot', 'secret_scanning']) {
+      assert.deepEqual(
+        validateDismissalReasons(['any reason', undefined], alertType, defaultRules),
+        { valid: true }
+      );
+    }
+
+    const rules = getDeterministicRules({
+      allowed_dismissal_reasons: { code_scanning: ['false positive'] },
+    });
+    assert.deepEqual(
+      validateDismissalReasons(['accepted risk'], 'dependabot', rules),
+      { valid: true }
+    );
+  });
+
+  it('accepts only exact configured reason strings for each alert type', () => {
+    const rules = getDeterministicRules({
+      case_sensitive: false,
+      allowed_dismissal_reasons: {
+        code_scanning: ['false positive'],
+        dependabot: ['accepted risk'],
+        secret_scanning: ['used in tests', 'revoked'],
+      },
+    });
+    for (const [alertType, reasons] of Object.entries(rules.allowedDismissalReasons)) {
+      assert.deepEqual(validateDismissalReasons(reasons, alertType, rules), { valid: true });
+      for (const reason of [undefined, null, '', 42, 'FALSE POSITIVE', 'not permitted']) {
+        const result = validateDismissalReasons([reason], alertType, rules);
+        assert.equal(result.valid, false);
+        assert.match(result.reason, /Please resubmit the dismissal request/);
+        assert.ok(result.reason.endsWith(`permitted reasons: ${reasons.join(', ')}.`));
+      }
+    }
+  });
+
+  it('rejects an alert if any of its duplicate entries has a disallowed reason', () => {
+    const rules = getDeterministicRules({
+      allowed_dismissal_reasons: { code_scanning: ['false positive'] },
+    });
+    for (const reasons of [
+      ['false positive', 'accepted risk'],
+      ['accepted risk', 'false positive'],
+    ]) {
+      assert.equal(validateDismissalReasons(reasons, 'code_scanning', rules).valid, false);
+    }
+  });
+
+  it('rejects malformed reason policies instead of silently allowing requests', () => {
+    for (const allowedReasons of [
+      null,
+      [],
+      'false positive',
+      { unsupported: ['false positive'] },
+      { code_scanning: null },
+      { code_scanning: 'false positive' },
+      { code_scanning: [] },
+      { code_scanning: [''] },
+      { code_scanning: ['   '] },
+      { code_scanning: [42] },
+      { code_scanning: ['false positive', null] },
+      { code_scanning: ['x'.repeat(101)] },
+    ]) {
+      assert.throws(
+        () => getDeterministicRules({ allowed_dismissal_reasons: allowedReasons }),
+        /allowed_dismissal_reasons/
+      );
+    }
   });
 
   it('accepts a comment containing the required phrase', () => {
@@ -146,5 +230,28 @@ Next step: Create a supporting issue, then add its URL to a new dismissal reques
 For more help, mention the Enterprise security desk`
     );
     assert.doesNotMatch(message, /[*@]/);
+  });
+
+  it('preserves denial guidance even when a custom template omits the reason placeholder', () => {
+    const { reason } = validateDismissalReasons(
+      ['accepted risk'],
+      'code_scanning',
+      getDeterministicRules({
+        allowed_dismissal_reasons: { code_scanning: ['false positive'] },
+      })
+    );
+    const message = formatDenialMessage(
+      {
+        alertType: 'code_scanning',
+        alertNumber: 42,
+        denialReason: reason,
+        repoFullName: 'org/repo',
+      },
+      { denial_message: 'Contact the security desk.' }
+    );
+    assert.equal(
+      message,
+      'Reason: The dismissal reason is not permitted for code scanning. Please resubmit the dismissal request using one of the permitted reasons: false positive.\n\nContact the security desk.'
+    );
   });
 });

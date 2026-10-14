@@ -19,6 +19,7 @@ const {
   formatDenialMessage,
   getDeterministicRules,
   validateDismissalComment,
+  validateDismissalReasons,
 } = require('./deterministic-review');
 
 const MAX_ALERTS_PER_REQUEST = 100;
@@ -538,7 +539,8 @@ function createWebhookReviewHandler(options) {
   } = options;
   const settings = getAgenticSettings(config);
   const enabledAlertTypes = getEnabledAlertTypes(config);
-  const deterministicRules = getDeterministicRules(config);
+  const deterministicRules =
+    settings.reviewMode === 'agentic' ? null : getDeterministicRules(config);
   const cacheSettings = getCacheSettings(config);
   const appIdentityCache = new BoundedTtlCache({
     ttlMs: cacheSettings.appIdentityTtlSeconds * 1000,
@@ -669,21 +671,40 @@ function createWebhookReviewHandler(options) {
         validateEnterpriseApp(data, settings.enterprise);
       }
     );
-    let commentValidation = { valid: true };
-    if (settings.reviewMode !== 'agentic') {
-      commentValidation = validateDismissalComment(
-        event.dismissalRequest.requester_comment,
-        deterministicRules
-      );
-    }
+    const commentValidation =
+      settings.reviewMode === 'agentic'
+        ? { valid: true }
+        : validateDismissalComment(
+            event.dismissalRequest.requester_comment,
+            deterministicRules
+          );
+    const alertReviews = event.alertNumbers.map((alertNumber) => {
+      let validation = { valid: true };
+      if (settings.reviewMode !== 'agentic') {
+        const reasons = event.dismissalRequest.exemption_request_data.data
+          .filter((item) => item.alert_number === alertNumber)
+          .map((item) => item.reason);
+        validation = validateDismissalReasons(
+          reasons,
+          event.alertType,
+          deterministicRules
+        );
+        if (validation.valid) validation = commentValidation;
+      }
+      return {
+        alertNumber,
+        validation,
+        action: !validation.valid
+          ? 'denied'
+          : settings.reviewMode === 'deterministic'
+            ? 'leave_open'
+            : 'dispatched',
+      };
+    });
+    const actions = new Set(alertReviews.map((review) => review.action));
+    const action = actions.size === 1 ? alertReviews[0].action : 'mixed';
 
-    const shouldDeny =
-      settings.reviewMode !== 'agentic' && !commentValidation.valid;
-    const shouldDispatch =
-      settings.reviewMode === 'agentic' ||
-      (settings.reviewMode === 'both' && commentValidation.valid);
-
-    if (!shouldDeny && !shouldDispatch) {
+    if (action === 'leave_open') {
       context.log.info(
         {
           webhook_event: eventName,
@@ -716,9 +737,15 @@ function createWebhookReviewHandler(options) {
     };
 
     const results = await mapWithConcurrency(
-      event.alertNumbers,
+      alertReviews,
       4,
-      async (alertNumber) => {
+      async ({ alertNumber, validation, action: alertAction }) => {
+        if (alertAction === 'leave_open') {
+          return {
+            duplicate: false,
+            value: { action: 'leave_open', alertNumber },
+          };
+        }
         const deliveryIdentity =
           event.deliveryId ||
           `${eventName}:${event.installationId}:${event.dismissalRequest.id}`;
@@ -730,13 +757,13 @@ function createWebhookReviewHandler(options) {
         ].join(':');
 
         return deliveryCache.runOnce(operationKey, async () => {
-          if (shouldDeny) {
+          if (alertAction === 'denied') {
             const message = formatDenialMessage(
               {
                 alertType: event.alertType,
                 alertNumber,
                 requester: event.dismissalRequest.requester_login,
-                denialReason: commentValidation.reason,
+                denialReason: validation.reason,
                 repoFullName: event.repository,
                 helpContact: settings.helpContact,
               },
@@ -797,14 +824,14 @@ function createWebhookReviewHandler(options) {
         alert_type: event.alertType,
         alert_count: event.alertNumbers.length,
         duplicate_count: duplicateCount,
-        outcome: shouldDeny ? 'denied' : 'dispatched',
+        outcome: action,
       },
       'Processed alert dismissal webhook.'
     );
 
     return {
       ignored: false,
-      action: shouldDeny ? 'denied' : 'dispatched',
+      action,
       alertNumbers: event.alertNumbers,
       duplicateCount,
       results,
